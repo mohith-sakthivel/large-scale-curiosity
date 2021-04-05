@@ -48,8 +48,8 @@ class Trainer(object):
             scope='pol',
             ob_space=self.ob_space,
             ac_space=self.ac_space,
-            hidsize=512,
-            feat_dim=512,
+            hidsize=hps['hid_dim'],
+            feat_dim=hps['hid_dim'],
             ob_mean=self.ob_mean,
             ob_std=self.ob_std,
             layernormalize=False,
@@ -62,13 +62,13 @@ class Trainer(object):
                                   "pix2pix": JustPixels}[hps['feat_learning']]
         self.feature_extractor = self.feature_extractor(policy=self.policy,
                                                         features_shared_with_policy=False,
-                                                        feat_dim=512,
+                                                        feat_dim=hps['feat_dim'],
                                                         layernormalize=hps['layernorm'])
 
         self.dynamics = Dynamics if hps['feat_learning'] != 'pix2pix' else UNet
         self.dynamics = self.dynamics(auxiliary_task=self.feature_extractor,
                                       predict_from_pixels=hps['dyn_from_pixels'],
-                                      feat_dim=512)
+                                      feat_dim=hps['feat_dim'])
 
         self.agent = PpoOptimizer(
             scope='ppo',
@@ -154,7 +154,7 @@ def get_experiment_environment(**args):
     set_global_seeds(process_seed)
     setup_mpi_gpus()
 
-    logger_context = logger.scoped_configure(dir=None,
+    logger_context = logger.scoped_configure(dir=args['log_dir']+'/'+args['exp_name'],
                                              format_strs=['stdout', 'log',
                                                           'csv'] if MPI.COMM_WORLD.Get_rank() == 0 else ['log'])
     tf_context = setup_tensorflow_session()
@@ -197,6 +197,7 @@ if __name__ == '__main__':
     add_rollout_params(parser)
 
     parser.add_argument('--exp_name', type=str, default='')
+    parser.add_argument('--log_dir', default='logs')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--dyn_from_pixels', type=int, default=0)
     parser.add_argument('--use_news', type=int, default=0)
@@ -205,6 +206,8 @@ if __name__ == '__main__':
     parser.add_argument('--layernorm', type=int, default=0)
     parser.add_argument('--feat_learning', type=str, default="none",
                         choices=["none", "idf", "vaesph", "vaenonsph", "pix2pix"])
+    parser.add_argument('--feat_dim', type=int, default=512)
+    parser.add_argument('--hid_dim', type=int, default=512)
 
     args = parser.parse_args()
 
